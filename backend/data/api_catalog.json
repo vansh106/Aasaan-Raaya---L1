@@ -1,0 +1,72 @@
+{
+  "apis": [
+    {
+      "id": "supplier_payables_get",
+      "name": "Get Supplier Payables",
+      "description": "Retrieves supplier payables information including invoices, payments, balances for contractors and material suppliers. Shows paid amounts, outstanding balances, GST amounts, due dates, and invoice details. Useful for financial queries about supplier payments, outstanding balances, invoice tracking, and payment history.",
+      "endpoint": "/analyticssupplierpayables-get",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "The project ID to filter payables",
+          "required": true,
+          "default": "165",
+          "example": "165"
+        },
+        {
+          "name": "supplierId",
+          "type": "query",
+          "description": "Specific supplier ID, use -1 for all suppliers",
+          "required": true,
+          "default": "-1",
+          "example": "-1"
+        },
+        {
+          "name": "supplierType",
+          "type": "query",
+          "description": "Type of supplier (e.g., 'Contract work', 'Material', etc.)",
+          "required": false,
+          "default": "Contract work",
+          "example": "Contract work"
+        },
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company ID for filtering",
+          "required": true,
+          "default": "88",
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User ID making the request",
+          "required": true,
+          "default": "4",
+          "example": "4"
+        }
+      ],
+      "tags": [
+        "finance",
+        "supplier",
+        "payables",
+        "invoices",
+        "payments",
+        "balance",
+        "contractor",
+        "accounts payable"
+      ],
+      "examples": [
+        "Show me all outstanding supplier payments",
+        "What is the total amount owed to suppliers?",
+        "List all invoices from Alpha Structures",
+        "How much have we paid to contractors?",
+        "Which invoices are overdue?",
+        "Show supplier payment balance for project 165"
+      ],
+      "response_description": "Returns array of supplier payables with fields: paid (amount paid), balance (outstanding amount), invoice_id, invoice_no, gst_amount, grossAmount, supplier (name), type (Contract work/Material/etc), due_date, amount (total). Also includes totalPayable and totalPaid summary."
+    }
+  ]
+}
