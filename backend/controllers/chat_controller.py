@@ -12,6 +12,7 @@ import time
 from typing import Dict, Any
 from fastapi import HTTPException
 from services.agent_service import AgentService
+from services.chat_history_service import chat_history_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -68,33 +69,37 @@ class ChatController:
         try:
             agent_service = get_agent_service()
 
-            # Process the query through the agent
-            result = await agent_service.process_query(
-                request.query, request.company_id, request.project_id
+            # 1) Load prior chat history (Mongo + Redis buffer)
+            history = await chat_history_service.load_history(
+                request.session_id, request.company_id
+            )
+            context_messages = [
+                {"role": msg.get("role"), "content": msg.get("content")}
+                for msg in history
+                if msg.get("role") and msg.get("content")
+            ]
+
+            # 2) Send history + new query to LLM
+            llm_response = await agent_service.llm_service.chat(
+                request.query, context=context_messages
+            )
+
+            # 3) Buffer the exchange in Redis (write-behind to Mongo)
+            await chat_history_service.append_exchange(
+                request.session_id, request.company_id, request.query, llm_response
             )
 
             processing_time = (time.time() - start_time) * 1000
 
-            # Build response
-            response = {
-                "success": result.get("success", False),
-                "response": result.get("response", ""),
-                "project": result.get("project"),
-                "selected_apis": result.get("selected_apis"),
-                "raw_data": result.get("raw_data"),
-                "error": result.get("error"),
-                "needs_clarification": result.get("needs_clarification"),
+            return {
+                "success": True,
+                "response": llm_response,
+                "project": None,
+                "selected_apis": None,
+                "raw_data": None,
+                "needs_clarification": False,
                 "processing_time_ms": round(processing_time, 2),
             }
-
-            # Add clarification info if needed
-            if result.get("needs_clarification"):
-                response["clarification_message"] = result.get(
-                    "clarification_message", result.get("response")
-                )
-                response["alternative_projects"] = result.get("alternative_projects")
-
-            return response
 
         except HTTPException:
             raise

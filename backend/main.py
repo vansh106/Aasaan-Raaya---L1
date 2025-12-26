@@ -22,6 +22,7 @@ import time
 
 from config import settings
 from services.database import db_service
+from services.redis_service import redis_service
 from services.erp_service import erp_service
 from routes import api_router
 
@@ -42,6 +43,13 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up ERP Agentic Chatbot API...")
     await db_service.connect()
+    
+    # Connect to Redis (optional, continues if Redis is unavailable)
+    try:
+        await redis_service.connect()
+    except Exception as e:
+        logger.warning(f"Redis connection failed (continuing without Redis): {e}")
+    
     logger.info("Application started successfully")
 
     yield
@@ -49,6 +57,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down...")
     await db_service.disconnect()
+    await redis_service.disconnect()
     await erp_service.close()
     logger.info("Shutdown complete")
 

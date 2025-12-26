@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
 
     query: str = Field(..., description="Natural language query", min_length=1)
     company_id: str = Field(..., description="Company ID for context")
+    session_id : str = Field(..., description="Session ID for previous chat context")
     project_id: Optional[str] = Field(
         None, description="Optional project ID (auto-detected if not provided)"
     )

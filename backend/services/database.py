@@ -62,6 +62,12 @@ class DatabaseService:
         await self._db.companies.create_index("suppliers.name")
         await self._db.companies.create_index("suppliers.type")
 
+        # Chat sessions indexes
+        await self._db.chat_sessions.create_index("session_id", unique=True)
+        await self._db.chat_sessions.create_index(
+            "last_activity", expireAfterSeconds=settings.chat_session_ttl_seconds
+        )
+
         logger.info("Database indexes created")
 
     @property
