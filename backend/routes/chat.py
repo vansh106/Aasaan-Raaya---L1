@@ -13,16 +13,14 @@ controller = ChatController()
 
 
 class ChatRequest(BaseModel):
-    """Chat request model"""
+    """Chat request model - Client sends only query, session_id, and company_id"""
 
     query: str = Field(..., description="Natural language query", min_length=1)
     company_id: str = Field(..., description="Company ID for context")
-    session_id : str = Field(..., description="Session ID for previous chat context")
+    session_id: str = Field(..., description="Session ID for chat history")
     project_id: Optional[str] = Field(
-        None, description="Optional project ID (auto-detected if not provided)"
-    )
-    context: Optional[List[Dict[str, str]]] = Field(
-        None, description="Optional conversation context"
+        None, 
+        description="Optional project ID (if not provided, LLM will auto-detect from query)"
     )
 
     class Config:
@@ -30,8 +28,8 @@ class ChatRequest(BaseModel):
             "example": {
                 "query": "Show me all outstanding supplier payments for Paradise apartments",
                 "company_id": "88",
+                "session_id": "user-123-session-456",
                 "project_id": None,
-                "context": None,
             }
         }
 
@@ -56,25 +54,40 @@ class ChatResponse(BaseModel):
 )
 async def chat(request: ChatRequest, api_key: str = Depends(check_rate_limit)):
     """
-    Main chat endpoint that processes user queries.
+    Main chat endpoint that processes user queries with full agentic workflow.
+
+    ## Client Payload:
+    - **query**: Natural language question
+    - **session_id**: Session ID for chat history
+    - **company_id**: Company identifier
+    - **project_id**: Optional (auto-detected if not provided)
 
     ## How it works:
 
-    1. **Project Selection**: If no project_id is provided, the AI analyzes your query
+    1. **Fetch Projects**: LLM calls Bootstrap API to get all projects for the company
+
+    2. **Project Selection**: If no project_id is provided, the AI analyzes your query
        to determine which project you're asking about. It looks for:
        - Direct project name mentions (e.g., "Paradise apartments")
        - Keywords associated with projects
-       - Context clues
+       - Context clues from chat history
 
-    2. **API Selection**: AI selects the most relevant ERP APIs based on your question
+    3. **API Selection**: AI selects the most relevant ERP APIs based on your question
 
-    3. **Data Fetching**: Calls the selected APIs with the determined project context
+    4. **Data Fetching**: Calls the selected APIs with the determined project context
 
-    4. **Response Generation**: Interprets the data and provides a natural language answer
+    5. **Response Generation**: Interprets the data and provides a natural language answer
 
     ## Example queries:
     - "Show me all outstanding supplier payments for Paradise apartments"
     - "What's the total pending amount for contractors in Elanza project?"
     - "List all overdue invoices" (will ask which project if ambiguous)
+    
+    ## Response:
+    - Returns natural language response with:
+      - Selected project information
+      - APIs called
+      - Raw data (optional)
+      - Clarification requests if needed
     """
     return await controller.process_chat(request)

@@ -15,6 +15,7 @@ import asyncio
 from models.api_catalog import APICatalog, APIDefinition
 from services.llm_service import LLMService
 from services.api_caller import APICallerService
+from services.erp_service import erp_service
 from services.database import db_service
 from models.company import Company, Project
 import logging
@@ -52,7 +53,7 @@ class AgentService:
 
         ## How Project Selection Works:
         
-        1. Fetch all projects for the company from MongoDB
+        1. Fetch all projects for the company from ERP Bootstrap API
         2. If only 1 project exists, use it automatically
         3. Otherwise, use LLM to analyze the query and match to a project
         4. LLM looks for:
@@ -70,18 +71,22 @@ class AgentService:
         - needs_clarification: Whether user needs to specify project
         - clarification_message: Message to prompt user
         """
-        # Get company from database
-        company = await db_service.get_company(company_id)
+        # Fetch bootstrap data from ERP to get projects
+        logger.info(f"Fetching projects from Bootstrap API for company {company_id}")
+        bootstrap_response = await erp_service.fetch_bootstrap(company_id)
 
-        if not company:
+        if not bootstrap_response.get("success"):
             return {
                 "project_id": None,
                 "project_name": None,
                 "needs_clarification": True,
-                "clarification_message": f"Company {company_id} not found. Please call /api/init first to initialize the company.",
+                "clarification_message": f"Unable to fetch company data: {bootstrap_response.get('error', 'Unknown error')}",
             }
 
-        if not company.projects:
+        bootstrap_data = bootstrap_response.get("data", {})
+        projects = bootstrap_data.get("projects", [])
+
+        if not projects:
             return {
                 "project_id": None,
                 "project_name": None,
@@ -89,33 +94,21 @@ class AgentService:
                 "clarification_message": "No projects found for this company. Please sync projects first.",
             }
 
-        # Convert projects to dict for LLM
+        # Convert projects to standardized format for LLM
         projects_data = [
             {
-                "project_id": p.project_id,
-                "name": p.name,
-                "description": p.description,
-                "keywords": p.keywords,
-                "aliases": p.aliases,
-                "status": p.status.value,
+                "project_id": str(p.get("id") or p.get("project_id")),
+                "name": p.get("name", ""),
+                "description": p.get("description", ""),
+                "keywords": p.get("keywords", []),
+                "aliases": p.get("aliases", []),
+                "location": p.get("location", ""),
+                "status": p.get("status", "active"),
             }
-            for p in company.projects
-            if p.status.value == "active"  # Only consider active projects
+            for p in projects
         ]
 
-        if not projects_data:
-            # No active projects, use any project
-            projects_data = [
-                {
-                    "project_id": p.project_id,
-                    "name": p.name,
-                    "description": p.description,
-                    "keywords": p.keywords,
-                    "aliases": p.aliases,
-                    "status": p.status.value,
-                }
-                for p in company.projects
-            ]
+        logger.info(f"Found {len(projects_data)} projects from Bootstrap API")
 
         # Use LLM to select project
         selection_result = await self.llm_service.select_project(
@@ -152,14 +145,13 @@ class AgentService:
                 "reasoning": selection_result.get("reasoning", ""),
             }
 
-        # Fallback: use default project
-        default_project = await db_service.get_default_project(company_id)
-        if default_project:
+        # Fallback: use first project with medium confidence
+        if projects_data:
             return {
-                "project_id": default_project.project_id,
-                "project_name": default_project.name,
+                "project_id": projects_data[0]["project_id"],
+                "project_name": projects_data[0]["name"],
                 "needs_clarification": True,
-                "clarification_message": f"Using default project: {default_project.name}. Please specify if you meant a different project.",
+                "clarification_message": f"Using project: {projects_data[0]['name']}. Please specify if you meant a different project.",
                 "confidence": 0.5,
             }
 

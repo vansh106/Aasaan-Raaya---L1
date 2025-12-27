@@ -34,13 +34,15 @@ class ChatController:
 
     async def process_chat(self, request) -> Dict[str, Any]:
         """
-        Process a natural language query.
+        Process a natural language query with full agentic workflow.
 
         ## Project Selection Logic (How we select the appropriate project):
 
-        1. **If project_id is provided**: Use it directly after validation
+        1. **LLM fetches projects**: Calls Bootstrap API to get all projects for the company
 
-        2. **If project_id is NOT provided**: Use LLM to analyze the query
+        2. **If project_id is provided**: Use it directly after validation
+
+        3. **If project_id is NOT provided**: Use LLM to analyze the query
            - The LLM receives the user query + list of available projects
            - It looks for:
              - Direct project name mentions ("Paradise apartments", "Elanza")
@@ -48,18 +50,21 @@ class ChatController:
              - Keywords associated with projects
            - Returns confidence score (0-1)
 
-        3. **Confidence thresholds**:
+        4. **Confidence thresholds**:
            - High confidence (>0.7): Use the detected project
            - Medium confidence (0.5-0.7): Use but warn user
            - Low confidence (<0.5): Ask user to clarify
 
-        4. **Fallback**: If no project detected and only one project exists, use it
+        5. **API Selection & Execution**: 
+           - LLM selects relevant APIs based on query
+           - Calls APIs with selected project_id
+           - Interprets results and generates natural language response
 
         Args:
-            request: ChatRequest with query, company_id, optional project_id
+            request: ChatRequest with query, company_id, session_id, optional project_id
 
         Returns:
-            ChatResponse with AI-generated answer
+            ChatResponse with AI-generated answer and metadata
         """
         start_time = time.time()
 
@@ -73,31 +78,39 @@ class ChatController:
             history = await chat_history_service.load_history(
                 request.session_id, request.company_id
             )
-            context_messages = [
-                {"role": msg.get("role"), "content": msg.get("content")}
-                for msg in history
-                if msg.get("role") and msg.get("content")
-            ]
-
-            # 2) Send history + new query to LLM
-            llm_response = await agent_service.llm_service.chat(
-                request.query, context=context_messages
+            
+            # 2) Process query through full agentic workflow
+            # This will:
+            # - Fetch projects from Bootstrap API
+            # - Select appropriate project using LLM
+            # - Select relevant APIs
+            # - Call APIs with project context
+            # - Interpret results
+            result = await agent_service.process_query(
+                user_query=request.query,
+                company_id=request.company_id,
+                project_id=request.project_id  # Optional, can be None
             )
 
             # 3) Buffer the exchange in Redis (write-behind to Mongo)
             await chat_history_service.append_exchange(
-                request.session_id, request.company_id, request.query, llm_response
+                request.session_id,
+                request.company_id,
+                request.query,
+                result.get("response", "")
             )
 
             processing_time = (time.time() - start_time) * 1000
 
             return {
-                "success": True,
-                "response": llm_response,
-                "project": None,
-                "selected_apis": None,
-                "raw_data": None,
-                "needs_clarification": False,
+                "success": result.get("success", True),
+                "response": result.get("response", ""),
+                "project": result.get("project"),
+                "selected_apis": result.get("selected_apis"),
+                "raw_data": result.get("raw_data"),
+                "needs_clarification": result.get("needs_clarification", False),
+                "clarification_message": result.get("clarification_message"),
+                "alternative_projects": result.get("alternative_projects"),
                 "processing_time_ms": round(processing_time, 2),
             }
 
