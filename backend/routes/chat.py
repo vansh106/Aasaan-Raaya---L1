@@ -35,22 +35,121 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Chat response model"""
+    """Chat response model with comprehensive result information"""
 
-    success: bool
-    response: str
-    project: Optional[Dict[str, str]] = Field(None, description="Selected project info")
-    selected_apis: Optional[List[Dict[str, Any]]] = None
-    raw_data: Optional[List[Any]] = None
-    error: Optional[str] = None
-    needs_clarification: Optional[bool] = None
-    clarification_message: Optional[str] = None
-    alternative_projects: Optional[List[Dict[str, str]]] = None
-    processing_time_ms: Optional[float] = None
+    success: bool = Field(..., description="Whether the request was successful")
+    response: str = Field(..., description="Natural language response to the user's query")
+    project: Optional[Dict[str, str]] = Field(None, description="Selected project information (id, name)")
+    selected_apis: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description="List of ERP APIs that were called to answer the query"
+    )
+    raw_data: Optional[List[Any]] = Field(
+        None,
+        description="Raw response data from ERP APIs (optional, for debugging)"
+    )
+    error: Optional[str] = Field(None, description="Error message if request failed")
+    needs_clarification: Optional[bool] = Field(
+        None,
+        description="True if the AI needs more information to answer the query"
+    )
+    clarification_message: Optional[str] = Field(
+        None,
+        description="Message asking the user for clarification"
+    )
+    alternative_projects: Optional[List[Dict[str, str]]] = Field(
+        None,
+        description="List of possible projects if project detection was ambiguous"
+    )
+    processing_time_ms: Optional[float] = Field(
+        None,
+        description="Time taken to process the request in milliseconds"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "response": "Here are the outstanding supplier payments for Paradise apartments:\n\n1. Alpha Structures: ₹45,000 (30 days overdue)\n2. Beta Suppliers: ₹28,500 (15 days overdue)\n\nTotal outstanding: ₹73,500",
+                "project": {
+                    "project_id": "165",
+                    "name": "Paradise apartments"
+                },
+                "selected_apis": [
+                    {
+                        "id": "get_supplier_payments",
+                        "name": "Get Supplier Payment Details"
+                    }
+                ],
+                "needs_clarification": False,
+                "processing_time_ms": 2456.78
+            }
+        }
 
 
 @router.post(
-    "/chat", response_model=ChatResponse, summary="Process natural language query"
+    "/chat",
+    response_model=ChatResponse,
+    summary="Process natural language query",
+    tags=["chat"],
+    responses={
+        200: {
+            "description": "Successful response with natural language answer",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "response": "Here are the outstanding supplier payments for Paradise apartments:\n\n1. Alpha Structures: ₹45,000 (30 days overdue)\n2. Beta Suppliers: ₹28,500 (15 days overdue)\n\nTotal outstanding: ₹73,500",
+                        "project": {
+                            "project_id": "165",
+                            "name": "Paradise apartments"
+                        },
+                        "selected_apis": [
+                            {
+                                "id": "get_supplier_payments",
+                                "name": "Get Supplier Payment Details"
+                            }
+                        ],
+                        "needs_clarification": False,
+                        "processing_time_ms": 2456.78
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Bad request - invalid input",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "error": "Query cannot be empty"
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Unauthorized - invalid or missing API key",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "error": {"message": "Invalid API key"}
+                    }
+                }
+            }
+        },
+        429: {
+            "description": "Rate limit exceeded",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "error": {"message": "Rate limit exceeded. Try again later."}
+                    }
+                }
+            }
+        }
+    }
 )
 async def chat(request: ChatRequest, api_key: str = Depends(check_rate_limit)):
     """
@@ -83,11 +182,18 @@ async def chat(request: ChatRequest, api_key: str = Depends(check_rate_limit)):
     - "What's the total pending amount for contractors in Elanza project?"
     - "List all overdue invoices" (will ask which project if ambiguous)
     
-    ## Response:
-    - Returns natural language response with:
-      - Selected project information
-      - APIs called
-      - Raw data (optional)
-      - Clarification requests if needed
+    ## Response Fields:
+    - **success**: Boolean indicating if the request was successful
+    - **response**: Natural language answer to your query
+    - **project**: Information about the selected/detected project
+    - **selected_apis**: List of ERP APIs that were called
+    - **raw_data**: Raw API response data (optional)
+    - **needs_clarification**: True if the AI needs more information
+    - **clarification_message**: Message asking for clarification
+    - **alternative_projects**: List of possible projects if ambiguous
+    - **processing_time_ms**: Time taken to process the request in milliseconds
+    
+    ## Authentication:
+    Requires valid API key in the `X-API-Key` header.
     """
     return await controller.process_chat(request)

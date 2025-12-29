@@ -167,17 +167,40 @@ Edit `backend/data/api_catalog.json` and add your API definition:
 **HTTP Methods:**
 - `GET`, `POST`, `PUT`, `DELETE`, `PATCH`
 
-### API Endpoints
+### API Documentation
 
-**Backend API Documentation:**
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+**📚 Complete Interactive API Documentation:**
+
+The API includes comprehensive Swagger/OpenAPI documentation with interactive testing capabilities:
+
+- **Swagger UI** (Interactive Testing): http://localhost:8000/docs
+- **ReDoc** (Clean Documentation): http://localhost:8000/redoc
+- **OpenAPI Schema** (Export/Integration): http://localhost:8000/openapi.json
+
+**📖 Documentation Guides:**
+- **Quick Reference**: [`backend/SWAGGER_QUICK_REF.md`](backend/SWAGGER_QUICK_REF.md) - Common operations and examples
+- **Full Guide**: [`backend/SWAGGER_DOCS.md`](backend/SWAGGER_DOCS.md) - Comprehensive Swagger documentation
+- **API Index**: [`API_DOCUMENTATION_INDEX.md`](API_DOCUMENTATION_INDEX.md) - Complete documentation index
+
+**🚀 Quick Start with Documentation:**
+```bash
+cd backend
+./start_with_docs.sh  # Starts server and opens docs in browser
+```
 
 **Main Endpoints:**
-- `POST /api/chat` - Send a chat message
+- `POST /api/init` - Initialize company and sync ERP data
+- `POST /api/chat` - Process natural language query
 - `GET /api/apis` - List all available APIs
 - `POST /api/apis` - Add a new API to catalog
+- `POST /api/apis/reload` - Reload API catalog
+- `GET /api/companies/{id}` - Get company details
+- `GET /api/companies/{id}/projects` - List projects
+- `GET /api/companies/{id}/suppliers` - List suppliers
 - `GET /health` - Health check
+
+**Authentication:**
+All endpoints (except `/health`) require API key authentication via the `X-API-Key` header.
 
 ## 🔧 Configuration
 
