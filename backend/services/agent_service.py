@@ -189,6 +189,9 @@ class AgentService:
         Returns:
             Dictionary containing the response and metadata
         """
+        # Initialize timing tracker
+        timings = {}
+        
         try:
             logger.info(f"Processing query: {user_query} for company: {company_id}")
 
@@ -198,6 +201,7 @@ class AgentService:
 
             # Use LLM to select relevant APIs (without requiring project initially)
             # Pass None for project_id to signal we don't have one yet
+            t_api_select_start = time.time()
             selection_result = await self.llm_service.select_apis(
                 user_query,
                 available_apis,
@@ -205,6 +209,8 @@ class AgentService:
                 project_id or "TBD",  # Will be determined later if needed
                 conversation_history=conversation_history or []
             )
+            t_api_select_end = time.time()
+            timings["llm_api_selection_ms"] = round((t_api_select_end - t_api_select_start) * 1000, 2)
 
             logger.debug(f"API Selection Result: {json.dumps(selection_result, indent=2)}")
 
@@ -224,6 +230,7 @@ class AgentService:
                         "response": general_response,
                         "selected_apis": [],
                         "is_general_query": True,
+                        "timings": timings,
                     }
                 
                 # Check if clarification is needed
@@ -235,6 +242,7 @@ class AgentService:
                             "I couldn't find a relevant API. Could you rephrase your question?",
                         ),
                         "needs_clarification": True,
+                        "timings": timings,
                     }
                 
                 # No APIs found, treat as general query anyway
@@ -248,6 +256,7 @@ class AgentService:
                     "response": general_response,
                     "selected_apis": [],
                     "is_general_query": True,
+                    "timings": timings,
                 }
 
             # Step 3: Project Selection (ONLY if APIs were selected)
@@ -261,20 +270,23 @@ class AgentService:
                         "error": "Invalid project",
                         "response": f"Project {project_id} not found for company {company_id}.",
                         "needs_clarification": True,
+                        "timings": timings,
                     }
                 project_selection = {
                     "project_id": project_id,
                     "project_name": project.name,
                     "needs_clarification": False,
                 }
+                timings["llm_project_selection_ms"] = 0
             else:
                 # Auto-select project from query using LLM (with conversation history)
-                time_start = time.time()
+                t_project_start = time.time()
                 project_selection = await self._select_project(
                     user_query, company_id, conversation_history=conversation_history or []
                 )
-                time_end = time.time()
-                logger.info(f"Time taken to select project: {time_end - time_start} seconds by LLM")
+                t_project_end = time.time()
+                timings["llm_project_selection_ms"] = round((t_project_end - t_project_start) * 1000, 2)
+                logger.info(f"⏱️ Project selection took: {timings['llm_project_selection_ms']} ms")
 
             # Check if we need project clarification
             if (
@@ -289,6 +301,7 @@ class AgentService:
                     "alternative_projects": project_selection.get(
                         "alternative_projects", []
                     ),
+                    "timings": timings,
                 }
 
             selected_project_id = project_selection["project_id"]
@@ -334,6 +347,7 @@ class AgentService:
                 )
 
             # Execute all API calls in parallel
+            t_api_calls_start = time.time()
             if api_call_tasks:
                 api_responses = await asyncio.gather(
                     *api_call_tasks, return_exceptions=True
@@ -344,6 +358,8 @@ class AgentService:
                 ]
             else:
                 api_responses = []
+            t_api_calls_end = time.time()
+            timings["api_calls_ms"] = round((t_api_calls_end - t_api_calls_start) * 1000, 2)
 
             if not api_responses:
                 return {
@@ -355,16 +371,20 @@ class AgentService:
                         "id": selected_project_id,
                         "name": selected_project_name,
                     },
+                    "timings": timings,
                 }
 
             # Step 5: Interpret the data using LLM (with conversation history)
             logger.info("Interpreting data with LLM...")
+            t_interpret_start = time.time()
             interpretation = await self.llm_service.interpret_data(
                 user_query,
                 api_responses,
                 selected_project_name,
                 conversation_history=conversation_history or []
             )
+            t_interpret_end = time.time()
+            timings["llm_interpretation_ms"] = round((t_interpret_end - t_interpret_start) * 1000, 2)
 
             return {
                 "success": True,
@@ -380,6 +400,7 @@ class AgentService:
                     if project_selection.get("needs_clarification")
                     else None
                 ),
+                "timings": timings,
             }
 
         except Exception as e:
@@ -388,6 +409,7 @@ class AgentService:
                 "success": False,
                 "error": str(e),
                 "response": f"I encountered an error while processing your query: {str(e)}",
+                "timings": timings if 'timings' in locals() else {},
             }
 
     async def _call_api_with_metadata(

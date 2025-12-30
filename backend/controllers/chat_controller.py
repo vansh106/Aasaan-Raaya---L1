@@ -129,17 +129,32 @@ class ChatController:
             
             # Calculate timings
             context_time = round((t2 - t1) * 1000, 2)
-            llm_time = round((t4 - t3) * 1000, 2)
+            agent_time = round((t4 - t3) * 1000, 2)
             total_time = round(processing_time, 2)
             
-            # Print timing visualization
-            print("\n" + "="*60)
-            print("⏱️  PERFORMANCE METRICS")
-            print("="*60)
-            print(f"📦 Context Fetching:  {context_time:>8} ms")
-            print(f"🤖 LLM Processing:    {llm_time:>8} ms")
-            print(f"⏱️  Total Time:        {total_time:>8} ms")
-            print("="*60 + "\n")
+            # Get detailed timings from agent service
+            agent_timings = result.get("timings", {})
+            llm_api_select = agent_timings.get("llm_api_selection_ms", 0)
+            llm_project_select = agent_timings.get("llm_project_selection_ms", 0)
+            api_calls = agent_timings.get("api_calls_ms", 0)
+            llm_interpret = agent_timings.get("llm_interpretation_ms", 0)
+            llm_total = llm_api_select + llm_project_select + llm_interpret
+            
+            # Print detailed timing visualization
+            print("\n" + "="*70)
+            print("⏱️  PERFORMANCE METRICS - /chat endpoint")
+            print("="*70)
+            print(f"📦 Context Fetching:        {context_time:>10} ms")
+            print("-"*70)
+            print(f"🤖 LLM - API Selection:     {llm_api_select:>10} ms")
+            print(f"🤖 LLM - Project Selection: {llm_project_select:>10} ms")
+            print(f"🔌 External API Calls:      {api_calls:>10} ms")
+            print(f"🤖 LLM - Interpretation:    {llm_interpret:>10} ms")
+            print("-"*70)
+            print(f"🧠 Total LLM Time:          {llm_total:>10} ms")
+            print(f"🚀 Agent Processing:        {agent_time:>10} ms")
+            print(f"⏱️  TOTAL TIME:              {total_time:>10} ms")
+            print("="*70 + "\n")
 
             return {
                 "success": result.get("success", True),
@@ -153,7 +168,12 @@ class ChatController:
                 "processing_time_ms": total_time,
                 "timings": {
                     "context_fetching_ms": context_time,
-                    "llm_processing_ms": llm_time,
+                    "llm_api_selection_ms": llm_api_select,
+                    "llm_project_selection_ms": llm_project_select,
+                    "api_calls_ms": api_calls,
+                    "llm_interpretation_ms": llm_interpret,
+                    "llm_total_ms": llm_total,
+                    "agent_processing_ms": agent_time,
                     "total_ms": total_time
                 }
             }
