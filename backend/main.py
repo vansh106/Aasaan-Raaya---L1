@@ -43,13 +43,13 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up ERP Agentic Chatbot API...")
     await db_service.connect()
-    
+
     # Connect to Redis (optional, continues if Redis is unavailable)
     try:
         await redis_service.connect()
     except Exception as e:
         logger.warning(f"Redis connection failed (continuing without Redis): {e}")
-    
+
     logger.info("Application started successfully")
 
     yield
@@ -184,34 +184,28 @@ For questions or issues, please refer to the project documentation or contact su
     openapi_tags=[
         {
             "name": "health",
-            "description": "Health check and status endpoints. These endpoints don't require authentication."
+            "description": "Health check and status endpoints. These endpoints don't require authentication.",
         },
         {
             "name": "init",
-            "description": "Company initialization and data synchronization. Call this endpoint on user login to sync ERP data."
+            "description": "Company initialization and data synchronization. Call this endpoint on user login to sync ERP data.",
         },
         {
             "name": "chat",
-            "description": "Natural language chat interface. Send queries in plain English and get intelligent responses."
+            "description": "Natural language chat interface. Send queries in plain English and get intelligent responses.",
         },
         {
             "name": "apis",
-            "description": "API catalog management. View, add, and manage ERP API definitions."
+            "description": "API catalog management. View, add, and manage ERP API definitions.",
         },
         {
             "name": "companies",
-            "description": "Company data management. Access projects, suppliers, modules, and company settings."
+            "description": "Company data management. Access projects, suppliers, modules, and company settings.",
         },
     ],
     servers=[
-        {
-            "url": "http://localhost:8000",
-            "description": "Development server"
-        },
-        {
-            "url": "https://api.yourdomain.com",
-            "description": "Production server"
-        }
+        {"url": "http://localhost:8000", "description": "Development server"},
+        {"url": "https://api.yourdomain.com", "description": "Production server"},
     ],
     contact={
         "name": "API Support",
@@ -225,14 +219,15 @@ For questions or issues, please refer to the project documentation or contact su
 
 # ==================== OpenAPI Security Configuration ====================
 
+
 # Add security scheme to OpenAPI schema
 def custom_openapi():
     """Customize OpenAPI schema with security definitions"""
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     from fastapi.openapi.utils import get_openapi
-    
+
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
@@ -241,20 +236,20 @@ def custom_openapi():
         tags=app.openapi_tags,
         servers=app.servers,
     )
-    
+
     # Add security schemes
     openapi_schema["components"]["securitySchemes"] = {
         "ApiKeyAuth": {
             "type": "apiKey",
             "in": "header",
             "name": "X-API-Key",
-            "description": "API key for authentication. Include your API key in the X-API-Key header for all authenticated endpoints."
+            "description": "API key for authentication. Include your API key in the X-API-Key header for all authenticated endpoints.",
         }
     }
-    
+
     # Add global security requirement (will be overridden by specific endpoints if needed)
     # openapi_schema["security"] = [{"ApiKeyAuth": []}]
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 

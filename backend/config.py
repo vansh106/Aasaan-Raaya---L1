@@ -33,11 +33,15 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: Optional[str] = None
-    redis_url: Optional[str] = None  # Alternative: full Redis URL (redis://[:password@]host:port/db)
+    redis_url: Optional[str] = (
+        None  # Alternative: full Redis URL (redis://[:password@]host:port/db)
+    )
 
     # ERP Configuration
     erp_base_url: str
     erp_api_timeout: int = 30
+    erp_cookie_xsrf_token: Optional[str] = None
+    erp_cookie_session: Optional[str] = None
 
     # CORS - accepts comma-separated string from .env
     cors_origins: Union[str, List[str]] = "*"
@@ -48,7 +52,9 @@ class Settings(BaseSettings):
 
     # Chat history / sessions
     chat_history_ttl_seconds: int = 900  # Keep recent exchanges in Redis for 15m
-    chat_write_behind_delay_seconds: int = 10  # Delay before flushing Redis buffer to Mongo
+    chat_write_behind_delay_seconds: int = (
+        10  # Delay before flushing Redis buffer to Mongo
+    )
     chat_session_ttl_seconds: int = 2592000  # TTL for Mongo chat sessions (30 days)
 
     # Rate Limiting
