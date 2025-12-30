@@ -1,72 +1,813 @@
 {
   "apis": [
     {
-      "id": "supplier_payables_get",
-      "name": "Get Supplier Payables",
-      "description": "Retrieves supplier payables information including invoices, payments, balances for contractors and material suppliers. Shows paid amounts, outstanding balances, GST amounts, due dates, and invoice details. Useful for financial queries about supplier payments, outstanding balances, invoice tracking, and payment history.",
-      "endpoint": "/analyticssupplierpayables-get",
+      "id": "billing_supplier_payables_get",
+      "name": "Get Supplier Payables (Billing)",
+      "description": "Fetch supplier billing payables including invoices, paid amount, outstanding balance, GST, and due dates.",
+      "endpoint": "/analytics/billing-supplier-payables",
       "method": "GET",
       "parameters": [
         {
-          "name": "projectId",
-          "type": "query",
-          "description": "The project ID to filter payables",
-          "required": true,
-          "default": "165",
-          "example": "165"
-        },
-        {
-          "name": "supplierId",
-          "type": "query",
-          "description": "Specific supplier ID, use -1 for all suppliers",
-          "required": true,
-          "default": "-1",
-          "example": "-1"
-        },
-        {
-          "name": "supplierType",
-          "type": "query",
-          "description": "Type of supplier (e.g., 'Contract work', 'Material', etc.)",
-          "required": false,
-          "default": "Contract work",
-          "example": "Contract work"
-        },
-        {
           "name": "company_id",
           "type": "query",
-          "description": "Company ID for filtering",
+          "description": "Company identifier",
           "required": true,
-          "default": "88",
           "example": "88"
         },
         {
           "name": "user_id",
           "type": "query",
-          "description": "User ID making the request",
+          "description": "User making the request",
           "required": true,
-          "default": "4",
           "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to filter supplier payables",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "supplierType",
+          "type": "query",
+          "description": "Type of supplier like Contract work or Material",
+          "required": false,
+          "example": "Contract work"
+        },
+        {
+          "name": "supplierdate",
+          "type": "query",
+          "description": "Filter suppliers by date",
+          "required": false,
+          "example": ""
+        },
+        {
+          "name": "supplierId",
+          "type": "query",
+          "description": "Supplier ID, use -1 for all suppliers",
+          "required": true,
+          "example": "-1"
+        }
+      ],
+      "tags": ["finance", "billing", "supplier", "payables"],
+      "examples": [
+        "Show all outstanding supplier payments",
+        "Get contractor payables"
+      ],
+      "response_description": "Returns supplier-wise invoices with paid amount, balance, GST, gross amount, due dates, and summary totals."
+    },
+    {
+      "id": "billing_supplier_payables_gst_get",
+      "name": "Get Supplier Payables with GST (Billing)",
+      "description": "Fetch supplier billing payables with GST breakup, including invoices, taxable amount, GST details, paid amount, outstanding balance, and due dates.",
+      "endpoint": "/analytics/billing-supplier-payables-gst",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to filter supplier GST payables",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "supplierType",
+          "type": "query",
+          "description": "Type of supplier such as Contract work or Material",
+          "required": false,
+          "example": "Contract work"
+        },
+        {
+          "name": "supplierdate",
+          "type": "query",
+          "description": "Optional date filter for supplier GST payables",
+          "required": false,
+          "example": ""
+        },
+        {
+          "name": "gstDetails",
+          "type": "query",
+          "description": "GST detail level (0 = summary, 1 = invoice-wise GST breakup)",
+          "required": true,
+          "example": "0"
         }
       ],
       "tags": [
         "finance",
+        "billing",
         "supplier",
         "payables",
-        "invoices",
-        "payments",
-        "balance",
-        "contractor",
-        "accounts payable"
+        "gst",
+        "tax"
       ],
       "examples": [
-        "Show me all outstanding supplier payments",
-        "What is the total amount owed to suppliers?",
-        "List all invoices from Alpha Structures",
-        "How much have we paid to contractors?",
-        "Which invoices are overdue?",
-        "Show supplier payment balance for project 165"
+        "Show supplier GST payables",
+        "Get GST outstanding for contractors",
+        "List supplier invoices with GST details"
       ],
-      "response_description": "Returns array of supplier payables with fields: paid (amount paid), balance (outstanding amount), invoice_id, invoice_no, gst_amount, grossAmount, supplier (name), type (Contract work/Material/etc), due_date, amount (total). Also includes totalPayable and totalPaid summary."
+      "response_description": "Returns supplier-wise invoices with taxable amount, GST breakup, paid GST, outstanding GST, gross totals, and aggregated GST summaries."
+    },
+    {
+      "id": "inventory_logs_get",
+      "name": "Get Inventory Logs",
+      "description": "Retrieve inventory transaction logs for a project, including inward, outward, transfers, adjustments, and consumption records.",
+      "endpoint": "/analytics/inventory-logs",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch inventory logs",
+          "required": true,
+          "example": "165"
+        }
+      ],
+      "tags": [
+        "inventory",
+        "materials",
+        "logs",
+        "stock",
+        "analytics"
+      ],
+      "examples": [
+        "Show inventory logs for project 165",
+        "List all stock movements",
+        "Get material inward and outward entries"
+      ],
+      "response_description": "Returns chronological inventory logs with material name, transaction type, quantity, unit, reference details, user action, and timestamps."
+    },
+    {
+      "id": "monthly_material_ordered_received_billed_get",
+      "name": "Get Monthly Material Ordered, Received & Billed",
+      "description": "Provides month-wise analytics of materials ordered, received, and billed for a project. Supports agency-wise, material-wise, or category-wise views.",
+      "endpoint": "/analytics/monthly-material-ordered-received-billed",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch monthly material analytics",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "agancy_id",
+          "type": "query",
+          "description": "Agency ID filter, use 'all' for all agencies",
+          "required": true,
+          "example": "all"
+        },
+        {
+          "name": "material_id",
+          "type": "query",
+          "description": "Material ID filter, use 'all' for all materials",
+          "required": true,
+          "example": "all"
+        },
+        {
+          "name": "catgory_id",
+          "type": "query",
+          "description": "Material category ID filter, use 'all' for all categories",
+          "required": true,
+          "example": "all"
+        },
+        {
+          "name": "startYear",
+          "type": "query",
+          "description": "Start year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/01"
+        },
+        {
+          "name": "endYear",
+          "type": "query",
+          "description": "End year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/12"
+        },
+        {
+          "name": "type",
+          "type": "query",
+          "description": "Aggregation type such as Agencywise, Materialwise, or Categorywise",
+          "required": true,
+          "example": "Agencywise"
+        }
+      ],
+      "tags": [
+        "materials",
+        "inventory",
+        "analytics",
+        "monthly",
+        "billing"
+      ],
+      "examples": [
+        "Show monthly material ordered vs received",
+        "Get agency-wise material billing data",
+        "Track monthly material consumption"
+      ],
+      "response_description": "Returns month-wise ordered, received, and billed quantities and values grouped by selected aggregation type, along with totals."
+    },
+    {
+      "id": "value_of_current_material_inventory_get",
+      "name": "Get Value of Current Material Inventory",
+      "description": "Provides the current value of material inventory for a project, including quantities on hand, average rates, and total inventory valuation.",
+      "endpoint": "/analytics/value-of-current-material-inventory",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to calculate current material inventory value",
+          "required": true,
+          "example": "165"
+        }
+      ],
+      "tags": [
+        "inventory",
+        "materials",
+        "valuation",
+        "analytics",
+        "stock"
+      ],
+      "examples": [
+        "Show value of current material inventory",
+        "Get inventory valuation for project 165"
+      ],
+      "response_description": "Returns material-wise quantities on hand, average rates, total value per material, and overall inventory value summary."
+    },
+    {
+      "id": "estimated_vs_actuals_get",
+      "name": "Get Estimated vs Actuals",
+      "description": "Compares estimated quantities or costs against actual values for a project, helping track variances in material usage, billing, or execution.",
+      "endpoint": "/analytics/estimated-vs-actuals",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to compare estimated and actual values",
+          "required": true,
+          "example": "165"
+        }
+      ],
+      "tags": [
+        "analytics",
+        "estimation",
+        "actuals",
+        "variance",
+        "project"
+      ],
+      "examples": [
+        "Show estimated vs actual costs",
+        "Compare planned and actual material usage",
+        "Track project variances"
+      ],
+      "response_description": "Returns item-wise or category-wise estimated values, actual values, variance amounts, and variance percentages with overall summaries."
+    },
+    {
+      "id": "property_developer_cashflow_get",
+      "name": "Get Property Developer Cashflow",
+      "description": "Provides cashflow analytics for a property development project, showing inflows, outflows, and net cash position over a selected time period.",
+      "endpoint": "/analytics/property-developer-cashflow",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch cashflow data",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "startYear",
+          "type": "query",
+          "description": "Start year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/01"
+        },
+        {
+          "name": "endYear",
+          "type": "query",
+          "description": "End year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/12"
+        }
+      ],
+      "tags": [
+        "finance",
+        "cashflow",
+        "property",
+        "analytics",
+        "project"
+      ],
+      "examples": [
+        "Show property developer cashflow",
+        "Get project cash inflow vs outflow",
+        "Track monthly cash position"
+      ],
+      "response_description": "Returns period-wise cash inflows, cash outflows, net cashflow, cumulative balance, and overall cash summaries."
+    },
+    {
+      "id": "monthly_operation_expenses_get",
+      "name": "Get Monthly Operation Expenses",
+      "description": "Provides month-wise operational expense analytics for a project, including various expense types and total spending over a selected period.",
+      "endpoint": "/analytics/monthly-operation-expenses",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch operational expenses",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "type",
+          "type": "query",
+          "description": "Expense type filter, use -1 to include all expense types",
+          "required": true,
+          "example": "-1"
+        },
+        {
+          "name": "startYear",
+          "type": "query",
+          "description": "Start year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/01"
+        },
+        {
+          "name": "endYear",
+          "type": "query",
+          "description": "End year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/12"
+        }
+      ],
+      "tags": [
+        "finance",
+        "expenses",
+        "operations",
+        "monthly",
+        "analytics"
+      ],
+      "examples": [
+        "Show monthly operation expenses",
+        "Get expense breakdown by month",
+        "Track operational spending"
+      ],
+      "response_description": "Returns month-wise operational expenses grouped by expense type, including totals per month and overall expense summaries."
+    },
+    {
+      "id": "total_expense_till_date_get",
+      "name": "Get Total Expense Till Date",
+      "description": "Provides the cumulative total expenses incurred for a project till date, with optional filtering by expense type.",
+      "endpoint": "/analytics/total-expense-till-date",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to calculate total expenses",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "type",
+          "type": "query",
+          "description": "Expense type filter, use -1 to include all expense types",
+          "required": true,
+          "example": "-1"
+        }
+      ],
+      "tags": [
+        "finance",
+        "expenses",
+        "analytics",
+        "project",
+        "summary"
+      ],
+      "examples": [
+        "Show total expense till date",
+        "Get cumulative project expenses"
+      ],
+      "response_description": "Returns total expenses till date, optionally grouped by expense type, along with overall expense summaries."
+    },
+    {
+      "id": "monthly_contractor_revenue_get",
+      "name": "Get Monthly Contractor Revenue",
+      "description": "Provides month-wise revenue analytics from contractors for a project, showing billed amounts, received amounts, and revenue trends over a selected period.",
+      "endpoint": "/analytics/monthly-contractor-revenue",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch contractor revenue analytics",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "type",
+          "type": "query",
+          "description": "Aggregation type such as monthly or cumulative",
+          "required": true,
+          "example": "monthly"
+        },
+        {
+          "name": "startYear",
+          "type": "query",
+          "description": "Start year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/01"
+        },
+        {
+          "name": "endYear",
+          "type": "query",
+          "description": "End year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/12"
+        }
+      ],
+      "tags": [
+        "finance",
+        "revenue",
+        "contractor",
+        "monthly",
+        "analytics"
+      ],
+      "examples": [
+        "Show monthly contractor revenue",
+        "Track contractor billing trends",
+        "Get revenue report for project"
+      ],
+      "response_description": "Returns month-wise contractor revenue including billed amounts, received amounts, outstanding revenue, and overall summaries."
+    },
+    {
+      "id": "contractor_cashflow_get",
+      "name": "Get Contractor Cashflow",
+      "description": "Provides cashflow analytics related to contractors for a project, showing inflows, outflows, and net contractor cash position over a selected period.",
+      "endpoint": "/analytics/contractor-cashflow",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch contractor cashflow data",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "type",
+          "type": "query",
+          "description": "Aggregation type such as monthly or cumulative",
+          "required": true,
+          "example": "monthly"
+        },
+        {
+          "name": "startYear",
+          "type": "query",
+          "description": "Start year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/01"
+        },
+        {
+          "name": "endYear",
+          "type": "query",
+          "description": "End year and month in YYYY/MM format",
+          "required": true,
+          "example": "2025/12"
+        }
+      ],
+      "tags": [
+        "finance",
+        "cashflow",
+        "contractor",
+        "analytics",
+        "project"
+      ],
+      "examples": [
+        "Show contractor cashflow",
+        "Get monthly contractor cash inflow and outflow",
+        "Track contractor cash position"
+      ],
+      "response_description": "Returns period-wise contractor cash inflows, cash outflows, net cashflow, cumulative balances, and overall summaries."
+    },
+    {
+      "id": "todays_expenses_get",
+      "name": "Get Today's Expenses",
+      "description": "Fetches all expenses recorded for a project on a specific date, providing details of expense type, amount, and references.",
+      "endpoint": "/analytics/todays-expenses",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "projectId",
+          "type": "query",
+          "description": "Project ID to fetch today's expenses",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "date",
+          "type": "query",
+          "description": "Date for which expenses are required in YYYY-MM-DD format",
+          "required": true,
+          "example": "2025-12-02"
+        }
+      ],
+      "tags": [
+        "finance",
+        "expenses",
+        "daily",
+        "analytics",
+        "project"
+      ],
+      "examples": [
+        "Show today's expenses",
+        "Get expenses for a specific date"
+      ],
+      "response_description": "Returns expense entries for the selected date including expense category, amount, payment mode, references, and total expense summary."
+    },
+    {
+      "id": "today_statistics_get",
+      "name": "Get Today Statistics",
+      "description": "Provides key operational and financial statistics for the selected date, optionally filtered by designation.",
+      "endpoint": "/analytics/today-statistics",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "designation_id",
+          "type": "query",
+          "description": "Designation filter, use -1 to include all designations",
+          "required": true,
+          "example": "-1"
+        },
+        {
+          "name": "date",
+          "type": "query",
+          "description": "Date for which statistics are required in YYYY-MM-DD format",
+          "required": true,
+          "example": "2025-12-02"
+        }
+      ],
+      "tags": [
+        "analytics",
+        "daily",
+        "statistics",
+        "operations",
+        "finance"
+      ],
+      "examples": [
+        "Show today's statistics",
+        "Get daily project stats",
+        "View designation-wise daily metrics"
+      ],
+      "response_description": "Returns aggregated daily statistics such as expenses, revenue, attendance, work progress, and other key metrics based on designation and date."
+    },
+    {
+      "id": "attendance_summary_get",
+      "name": "Get Attendance Summary",
+      "description": "Provides a summary of workforce attendance for a project on a specific date, including present, absent, and total headcount.",
+      "endpoint": "/analytics/attendance-summary",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier",
+          "required": true,
+          "example": "88"
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "description": "User making the request",
+          "required": true,
+          "example": "4"
+        },
+        {
+          "name": "project_id",
+          "type": "query",
+          "description": "Project ID to fetch attendance summary",
+          "required": true,
+          "example": "165"
+        },
+        {
+          "name": "date",
+          "type": "query",
+          "description": "Date for which attendance summary is required in YYYY-MM-DD format",
+          "required": true,
+          "example": "2025-12-01"
+        }
+      ],
+      "tags": [
+        "attendance",
+        "workforce",
+        "analytics",
+        "daily",
+        "project"
+      ],
+      "examples": [
+        "Show attendance summary",
+        "Get daily workforce attendance"
+      ],
+      "response_description": "Returns attendance counts including present, absent, total workforce, and optional designation-wise breakdown."
+    },
+    {
+      "id": "bootstrap_get",
+      "name": "Get Company Bootstrap Data",
+      "description": "Returns bootstrap data for a company including company details, projects, suppliers, and enabled modules. This API is typically called on app initialization to preload master data.",
+      "endpoint": "/bootstrap",
+      "method": "GET",
+      "parameters": [
+        {
+          "name": "company_id",
+          "type": "query",
+          "description": "Company identifier for which bootstrap data is required",
+          "required": true,
+          "example": "88"
+        }
+      ],
+      "tags": [
+        "bootstrap",
+        "company",
+        "master-data",
+        "initialization"
+      ],
+      "examples": [
+        "Load company bootstrap data",
+        "Fetch company projects and suppliers",
+        "Initialize application data"
+      ],
+      "response_description": "Returns company profile information, list of active projects, suppliers with types, enabled modules, and API metadata used to initialize the application state."
     }
   ]
 }

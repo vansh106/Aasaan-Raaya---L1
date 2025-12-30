@@ -1,31 +1,9 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # ============================================
   # MongoDB Database
   # ============================================
-  mongodb:
-    image: mongo:7.0
-    container_name: erp_chatbot_mongodb
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-secretpassword}
-      MONGO_INITDB_DATABASE: erp_chatbot
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    networks:
-      - erp_network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
   # ============================================
   # Redis Cache (Optional - for production scaling)
   # ============================================
@@ -57,39 +35,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      # Application
-      DEBUG: ${DEBUG:-false}
-      
-      # API Key Authentication
-      API_KEY: ${API_KEY}
-      API_KEY_HEADER_NAME: ${API_KEY_HEADER_NAME:-X-API-Key}
-      
-      # LLM Configuration
-      LLM_MODEL: ${LLM_MODEL:-gemini/gemini-2.0-flash}
-      LLM_API_KEY: ${LLM_API_KEY}
-      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
-      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
-      LLM_TIMEOUT: ${LLM_TIMEOUT:-30}
-      
-      # MongoDB
-      MONGODB_URI: mongodb://${MONGO_USERNAME:-admin}:${MONGO_PASSWORD:-secretpassword}@mongodb:27017
-      MONGODB_DATABASE: ${MONGODB_DATABASE:-erp_chatbot}
-      
-      # ERP Configuration
-      ERP_BASE_URL: ${ERP_BASE_URL}
-      ERP_API_TIMEOUT: ${ERP_API_TIMEOUT:-30}
-      
-      # CORS
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
-      
-      # Caching
-      CACHE_TTL: ${CACHE_TTL:-300}
-      ENABLE_CACHE: ${ENABLE_CACHE:-true}
-      
-      # Rate Limiting
-      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-100}
-      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60}
+    env-file:
+      - .env
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -136,10 +83,5 @@ networks:
 # Volumes
 # ============================================
 volumes:
-  mongodb_data:
-    driver: local
-  mongodb_config:
-    driver: local
   redis_data:
     driver: local
-

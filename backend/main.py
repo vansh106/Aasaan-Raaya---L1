@@ -22,6 +22,7 @@ import time
 
 from config import settings
 from services.database import db_service
+from services.redis_service import redis_service
 from services.erp_service import erp_service
 from routes import api_router
 
@@ -42,6 +43,13 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up ERP Agentic Chatbot API...")
     await db_service.connect()
+
+    # Connect to Redis (optional, continues if Redis is unavailable)
+    try:
+        await redis_service.connect()
+    except Exception as e:
+        logger.warning(f"Redis connection failed (continuing without Redis): {e}")
+
     logger.info("Application started successfully")
 
     yield
@@ -49,6 +57,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down...")
     await db_service.disconnect()
+    await redis_service.disconnect()
     await erp_service.close()
     logger.info("Shutdown complete")
 
@@ -68,6 +77,8 @@ AI-powered chatbot that intelligently queries ERP APIs based on natural language
 - **Automatic API Selection**: AI selects the most relevant ERP APIs
 - **Smart Project Detection**: Automatically determines which project you're asking about
 - **Multi-tenant Support**: Supports multiple companies and projects
+- **Chat History**: Maintains conversation context across sessions
+- **Rate Limiting**: Built-in rate limiting for API protection
 
 ### Authentication
 
@@ -100,6 +111,70 @@ When you send a query without specifying a project:
 - "Show me all outstanding payments for Paradise apartments"
 - "What's the total pending amount for contractors?"
 - "List all overdue invoices from Alpha Structures"
+- "What are the material costs for Elanza project this month?"
+- "Show me attendance records for site workers"
+
+### API Workflow
+
+1. **Initialization**: First-time setup or data refresh
+   ```bash
+   POST /api/init
+   {
+     "company_id": "88",
+     "force_refresh": false
+   }
+   ```
+
+2. **Chat Queries**: Natural language questions
+   ```bash
+   POST /api/chat
+   {
+     "query": "Show outstanding payments",
+     "company_id": "88",
+     "session_id": "user-session-123",
+     "project_id": null  # Optional, auto-detected if not provided
+   }
+   ```
+
+3. **Data Management**: Access company data directly
+   - `GET /api/companies/{company_id}` - Get company details
+   - `GET /api/companies/{company_id}/projects` - List projects
+   - `GET /api/companies/{company_id}/suppliers` - List suppliers
+
+### Response Format
+
+All API responses follow a consistent format:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Operation completed successfully"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Error description",
+    "code": "ERROR_CODE"
+  },
+  "status_code": 400
+}
+```
+
+### Rate Limiting
+
+- 100 requests per minute per API key
+- 429 status code returned when limit exceeded
+- Rate limit headers included in responses
+
+### Support
+
+For questions or issues, please refer to the project documentation or contact support.
     """,
     version=settings.app_version,
     docs_url="/docs",
@@ -107,13 +182,79 @@ When you send a query without specifying a project:
     openapi_url="/openapi.json",
     lifespan=lifespan,
     openapi_tags=[
-        {"name": "health", "description": "Health check endpoints"},
-        {"name": "init", "description": "Company and project initialization"},
-        {"name": "chat", "description": "Chat and query endpoints"},
-        {"name": "apis", "description": "API catalog management"},
-        {"name": "companies", "description": "Company management"},
+        {
+            "name": "health",
+            "description": "Health check and status endpoints. These endpoints don't require authentication.",
+        },
+        {
+            "name": "init",
+            "description": "Company initialization and data synchronization. Call this endpoint on user login to sync ERP data.",
+        },
+        {
+            "name": "chat",
+            "description": "Natural language chat interface. Send queries in plain English and get intelligent responses.",
+        },
+        {
+            "name": "apis",
+            "description": "API catalog management. View, add, and manage ERP API definitions.",
+        },
+        {
+            "name": "companies",
+            "description": "Company data management. Access projects, suppliers, modules, and company settings.",
+        },
     ],
+    servers=[
+        {"url": "http://localhost:8000", "description": "Development server"},
+        {"url": "https://api.yourdomain.com", "description": "Production server"},
+    ],
+    contact={
+        "name": "API Support",
+        "email": "support@yourdomain.com",
+    },
+    license_info={
+        "name": "MIT",
+    },
 )
+
+
+# ==================== OpenAPI Security Configuration ====================
+
+
+# Add security scheme to OpenAPI schema
+def custom_openapi():
+    """Customize OpenAPI schema with security definitions"""
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    from fastapi.openapi.utils import get_openapi
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        tags=app.openapi_tags,
+        servers=app.servers,
+    )
+
+    # Add security schemes
+    openapi_schema["components"]["securitySchemes"] = {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+            "description": "API key for authentication. Include your API key in the X-API-Key header for all authenticated endpoints.",
+        }
+    }
+
+    # Add global security requirement (will be overridden by specific endpoints if needed)
+    # openapi_schema["security"] = [{"ApiKeyAuth": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 
 # ==================== Middleware ====================
