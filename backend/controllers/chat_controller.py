@@ -13,6 +13,7 @@ from typing import Dict, Any
 from fastapi import HTTPException
 from services.agent_service import AgentService
 from services.chat_history_service import chat_history_service
+from services.session_context_service import session_context_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -74,25 +75,49 @@ class ChatController:
         try:
             agent_service = get_agent_service()
 
-            # 1) Load prior chat history (Mongo + Redis buffer)
+            # 1) Load prior chat history (Mongo + Redis buffer) for context retention
+            t1 = time.time()
             history = await chat_history_service.load_history(
                 request.session_id, request.company_id
             )
             
-            # 2) Process query through full agentic workflow
+            # 2) Check session context for stored project (if not explicitly provided)
+            project_id = request.project_id
+            if not project_id:
+                stored_project = await session_context_service.get_project(request.session_id)
+                if stored_project:
+                    project_id = stored_project.get("project_id")
+                    logger.info(f"Using stored project from session: {stored_project.get('project_name')}")
+            t2 = time.time()
+            
+            # 3) Process query through full agentic workflow WITH conversation history
             # This will:
             # - Fetch projects from Bootstrap API
-            # - Select appropriate project using LLM
-            # - Select relevant APIs
+            # - Select appropriate project using LLM (with conversation context)
+            # - Select relevant APIs (with conversation context)
             # - Call APIs with project context
-            # - Interpret results
+            # - Interpret results (with conversation context)
+            t3 = time.time()
             result = await agent_service.process_query(
                 user_query=request.query,
                 company_id=request.company_id,
-                project_id=request.project_id  # Optional, can be None
+                project_id=project_id,  # Use stored project if available
+                conversation_history=history  # Pass full conversation history for context retention
             )
+            t4 = time.time()
 
-            # 3) Buffer the exchange in Redis (write-behind to Mongo)
+            # 4) Store project in session context if successfully selected
+            if result.get("success") and result.get("project"):
+                project_info = result["project"]
+                if project_info.get("id") and project_info.get("name"):
+                    await session_context_service.set_project(
+                        request.session_id,
+                        project_info["id"],
+                        project_info["name"]
+                    )
+                    logger.info(f"Stored project in session context: {project_info['name']}")
+
+            # 5) Buffer the exchange in Redis (write-behind to Mongo)
             await chat_history_service.append_exchange(
                 request.session_id,
                 request.company_id,
@@ -101,6 +126,20 @@ class ChatController:
             )
 
             processing_time = (time.time() - start_time) * 1000
+            
+            # Calculate timings
+            context_time = round((t2 - t1) * 1000, 2)
+            llm_time = round((t4 - t3) * 1000, 2)
+            total_time = round(processing_time, 2)
+            
+            # Print timing visualization
+            print("\n" + "="*60)
+            print("⏱️  PERFORMANCE METRICS")
+            print("="*60)
+            print(f"📦 Context Fetching:  {context_time:>8} ms")
+            print(f"🤖 LLM Processing:    {llm_time:>8} ms")
+            print(f"⏱️  Total Time:        {total_time:>8} ms")
+            print("="*60 + "\n")
 
             return {
                 "success": result.get("success", True),
@@ -111,7 +150,12 @@ class ChatController:
                 "needs_clarification": result.get("needs_clarification", False),
                 "clarification_message": result.get("clarification_message"),
                 "alternative_projects": result.get("alternative_projects"),
-                "processing_time_ms": round(processing_time, 2),
+                "processing_time_ms": total_time,
+                "timings": {
+                    "context_fetching_ms": context_time,
+                    "llm_processing_ms": llm_time,
+                    "total_ms": total_time
+                }
             }
 
         except HTTPException:

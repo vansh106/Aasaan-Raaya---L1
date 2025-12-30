@@ -8,6 +8,7 @@ Features:
 - Error handling with user prompts
 """
 
+import time
 from typing import Dict, Any, List, Optional
 import json
 from pathlib import Path
@@ -46,7 +47,7 @@ class AgentService:
             return APICatalog(apis=[])
 
     async def _select_project(
-        self, user_query: str, company_id: str
+        self, user_query: str, company_id: str, conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Select the appropriate project based on user query and company.
@@ -110,9 +111,9 @@ class AgentService:
 
         logger.info(f"Found {len(projects_data)} projects from Bootstrap API")
 
-        # Use LLM to select project
+        # Use LLM to select project (with conversation history for context)
         selection_result = await self.llm_service.select_project(
-            user_query, projects_data
+            user_query, projects_data, conversation_history=conversation_history or []
         )
 
         confidence = selection_result.get("confidence", 0)
@@ -163,21 +164,27 @@ class AgentService:
         }
 
     async def process_query(
-        self, user_query: str, company_id: str, project_id: Optional[str] = None
+        self,
+        user_query: str,
+        company_id: str,
+        project_id: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Process a user query through the complete agentic workflow.
 
-        Steps:
-        1. Select/validate project (using LLM if needed)
-        2. Use LLM to understand query and select relevant APIs
-        3. Fetch data from selected APIs (in parallel)
-        4. Use LLM to interpret the data and generate response
+        NEW Flow (Context-Aware):
+        1. Use LLM to understand query and select relevant APIs (without requiring project)
+        2. If no APIs needed (general query), answer directly via chat
+        3. If APIs are needed and require project, THEN select/validate project
+        4. Fetch data from selected APIs (in parallel)
+        5. Use LLM to interpret the data and generate response
 
         Args:
             user_query: The user's question
             company_id: Company ID for context
-            project_id: Optional project ID (if not provided, will be auto-selected)
+            project_id: Optional project ID (if not provided, will be auto-selected only when needed)
+            conversation_history: Optional conversation history for context retention
 
         Returns:
             Dictionary containing the response and metadata
@@ -185,7 +192,66 @@ class AgentService:
         try:
             logger.info(f"Processing query: {user_query} for company: {company_id}")
 
-            # Step 1: Project Selection
+            # Step 1: API Selection (BEFORE project selection)
+            # This allows us to determine if we actually need a project
+            available_apis = [api.model_dump() for api in self.catalog.apis]
+
+            # Use LLM to select relevant APIs (without requiring project initially)
+            # Pass None for project_id to signal we don't have one yet
+            selection_result = await self.llm_service.select_apis(
+                user_query,
+                available_apis,
+                company_id,
+                project_id or "TBD",  # Will be determined later if needed
+                conversation_history=conversation_history or []
+            )
+
+            logger.debug(f"API Selection Result: {json.dumps(selection_result, indent=2)}")
+
+            selected_apis = selection_result.get("selected_apis", [])
+
+            # Step 2: Handle queries that don't need APIs (general chat)
+            if not selected_apis:
+                # Check if this is a general conversational query (like "What is 8 × 8?")
+                if selection_result.get("is_general_query"):
+                    logger.info("Handling as general conversational query (no API needed)")
+                    general_response = await self.llm_service.chat(
+                        user_query,
+                        context=conversation_history or []
+                    )
+                    return {
+                        "success": True,
+                        "response": general_response,
+                        "selected_apis": [],
+                        "is_general_query": True,
+                    }
+                
+                # Check if clarification is needed
+                if selection_result.get("needs_clarification"):
+                    return {
+                        "success": False,
+                        "response": selection_result.get(
+                            "clarification_message",
+                            "I couldn't find a relevant API. Could you rephrase your question?",
+                        ),
+                        "needs_clarification": True,
+                    }
+                
+                # No APIs found, treat as general query anyway
+                logger.info("No APIs selected, falling back to general chat")
+                general_response = await self.llm_service.chat(
+                    user_query,
+                    context=conversation_history or []
+                )
+                return {
+                    "success": True,
+                    "response": general_response,
+                    "selected_apis": [],
+                    "is_general_query": True,
+                }
+
+            # Step 3: Project Selection (ONLY if APIs were selected)
+            # Now we know we need APIs, so we need a project
             if project_id:
                 # Validate provided project_id
                 project = await db_service.get_project(company_id, project_id)
@@ -202,8 +268,13 @@ class AgentService:
                     "needs_clarification": False,
                 }
             else:
-                # Auto-select project from query using LLM
-                project_selection = await self._select_project(user_query, company_id)
+                # Auto-select project from query using LLM (with conversation history)
+                time_start = time.time()
+                project_selection = await self._select_project(
+                    user_query, company_id, conversation_history=conversation_history or []
+                )
+                time_end = time.time()
+                logger.info(f"Time taken to select project: {time_end - time_start} seconds by LLM")
 
             # Check if we need project clarification
             if (
@@ -227,47 +298,7 @@ class AgentService:
                 f"Selected project: {selected_project_name} ({selected_project_id})"
             )
 
-            # Step 2: API Selection
-            available_apis = [api.model_dump() for api in self.catalog.apis]
-
-            if not available_apis:
-                return {
-                    "success": False,
-                    "error": "No APIs available in catalog",
-                    "response": "I don't have access to any APIs yet. Please configure the API catalog.",
-                }
-
-            # Use LLM to select relevant APIs
-            selection_result = await self.llm_service.select_apis(
-                user_query, available_apis, company_id, selected_project_id
-            )
-
-            logger.debug(f"API Selection Result: {json.dumps(selection_result, indent=2)}")
-
-            selected_apis = selection_result.get("selected_apis", [])
-
-            if not selected_apis:
-                # Check if clarification is needed
-                if selection_result.get("needs_clarification"):
-                    return {
-                        "success": False,
-                        "response": selection_result.get(
-                            "clarification_message",
-                            "I couldn't find a relevant API. Could you rephrase your question?",
-                        ),
-                        "needs_clarification": True,
-                    }
-                return {
-                    "success": True,
-                    "response": "I couldn't find a relevant API to answer your question. Could you rephrase it?",
-                    "selected_apis": [],
-                    "project": {
-                        "id": selected_project_id,
-                        "name": selected_project_name,
-                    },
-                }
-
-            # Step 3: Call the selected APIs (in parallel for latency optimization)
+            # Step 4: Call the selected APIs (in parallel for latency optimization)
             api_call_tasks = []
 
             for selected_api in selected_apis:
@@ -326,10 +357,13 @@ class AgentService:
                     },
                 }
 
-            # Step 4: Interpret the data using LLM
+            # Step 5: Interpret the data using LLM (with conversation history)
             logger.info("Interpreting data with LLM...")
             interpretation = await self.llm_service.interpret_data(
-                user_query, api_responses, selected_project_name
+                user_query,
+                api_responses,
+                selected_project_name,
+                conversation_history=conversation_history or []
             )
 
             return {

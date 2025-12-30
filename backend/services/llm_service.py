@@ -159,7 +159,8 @@ class LLMService:
         user_query: str,
         available_apis: List[Dict[str, Any]],
         company_id: str,
-        project_id: str
+        project_id: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Select the most relevant APIs for a user query.
@@ -169,6 +170,7 @@ class LLMService:
             available_apis: List of API definitions from catalog
             company_id: Company ID for context
             project_id: Selected project ID
+            conversation_history: Previous conversation for context retention
         
         Returns:
             Dictionary containing selected APIs and parameters
@@ -182,17 +184,34 @@ class LLMService:
             for api in available_apis
         ])
         
-        system_prompt = """You are an intelligent API selection agent. Based on the user's query, you need to:
-1. Select the most relevant API(s) that can answer the query
-2. Extract or infer the required parameter values from the query
-3. Return a structured JSON response
+        system_prompt = """You are an intelligent API selection agent. Based on the user's query and conversation history, you need to:
+1. Determine if the query requires API calls or is a general conversational query
+2. If APIs are needed, select the most relevant API(s)
+3. Extract or infer the required parameter values from the query
+4. Use conversation context to understand references and maintain continuity
+5. Return a structured JSON response
 
 CRITICAL INSTRUCTIONS:
-- Analyze the user query carefully
-- Select one or more APIs that are relevant
-- For each API, provide the parameter values
-- Use the provided projectId and company_id values
-- Return ONLY valid JSON, no additional text"""
+- Analyze the user query carefully along with previous conversation context
+- If the query is general/conversational (e.g., "What is 8 × 8?", "Hello", "Explain something"), set is_general_query to true
+- Only select APIs if the query actually needs data from the system
+- For each API selected, provide the parameter values
+- Use the provided projectId and company_id values (they may be "TBD" if not yet determined)
+- If project info was discussed previously, use that context
+- Return ONLY valid JSON, no additional text
+
+EXAMPLES OF GENERAL QUERIES (no APIs needed):
+- "What is 8 × 8?"
+- "Hello"
+- "How are you?"
+- "Explain what a booking means"
+- "What can you help me with?"
+
+EXAMPLES OF API QUERIES (APIs needed):
+- "Show me units"
+- "What are the bookings?"
+- "Total revenue"
+- "List all projects" """
 
         user_prompt = f"""User Query: "{user_query}"
 
@@ -205,6 +224,7 @@ Available APIs:
 
 Return format (ONLY JSON):
 {{
+  "is_general_query": false,
   "selected_apis": [
     {{
       "api_id": "api_identifier",
@@ -219,19 +239,38 @@ Return format (ONLY JSON):
   ],
   "needs_clarification": false,
   "clarification_message": ""
+}}
+
+If the query is general/conversational (like "What is 8 × 8?"):
+{{
+  "is_general_query": true,
+  "selected_apis": [],
+  "needs_clarification": false,
+  "clarification_message": ""
 }}"""
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        # Build messages with conversation history
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history (but limit to last 10 messages to avoid token limits)
+        if conversation_history:
+            recent_history = conversation_history[-10:]
+            messages.extend(recent_history)
+        
+        # Add current query
+        messages.append({"role": "user", "content": user_prompt})
         
         try:
             response_text = await self._call_llm(messages)
-            return self._parse_json_response(response_text)
+            result = self._parse_json_response(response_text)
+            # Ensure is_general_query exists in response
+            if "is_general_query" not in result:
+                result["is_general_query"] = False
+            return result
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error: {e}")
             return {
+                "is_general_query": False,
                 "selected_apis": [],
                 "needs_clarification": True,
                 "clarification_message": "I had trouble understanding which API to use. Could you rephrase your question?"
@@ -239,6 +278,7 @@ Return format (ONLY JSON):
         except Exception as e:
             logger.error(f"Error in API selection: {e}")
             return {
+                "is_general_query": False,
                 "selected_apis": [],
                 "needs_clarification": True,
                 "clarification_message": f"An error occurred: {str(e)}"
@@ -247,7 +287,8 @@ Return format (ONLY JSON):
     async def select_project(
         self,
         user_query: str,
-        projects: List[Dict[str, Any]]
+        projects: List[Dict[str, Any]],
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
         Select the most appropriate project based on user query.
@@ -255,6 +296,7 @@ Return format (ONLY JSON):
         Args:
             user_query: The user's question
             projects: List of available projects
+            conversation_history: Previous conversation for context retention
         
         Returns:
             Dictionary with selected project info
@@ -286,16 +328,23 @@ Return format (ONLY JSON):
             for p in projects
         ])
         
-        system_prompt = """You are a project selection assistant. Analyze the user query and select the most relevant project.
-If the query doesn't mention a specific project, indicate that clarification is needed.
-Return ONLY valid JSON."""
+        system_prompt = """You are a project selection assistant. Analyze the user query and conversation history to select the most relevant project.
+
+CRITICAL RULES:
+- Review conversation history to see if a project was already mentioned or selected
+- If a project was discussed earlier in the conversation, use that context with HIGH confidence
+- If the current query doesn't mention a specific project but one was discussed before, ALWAYS use the previous project
+- If only one project is available, use it directly
+- Only set needs_clarification=true if NO project has EVER been mentioned in the conversation AND there are multiple projects available
+- Avoid asking for project clarification unnecessarily - use context from previous messages
+- Return ONLY valid JSON."""
 
         user_prompt = f"""User Query: "{user_query}"
 
 Available Projects:
 {project_list}
 
-Analyze if the query mentions or implies a specific project. Return JSON:
+Analyze if the query mentions or implies a specific project, or if a project was discussed in previous messages. Return JSON:
 {{
   "selected_project": {{
     "project_id": "id",
@@ -308,10 +357,16 @@ Analyze if the query mentions or implies a specific project. Return JSON:
   "alternative_projects": [list of possible project names if multiple match]
 }}"""
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        # Build messages with conversation history
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history (limit to last 10 messages)
+        if conversation_history:
+            recent_history = conversation_history[-10:]
+            messages.extend(recent_history)
+        
+        # Add current query
+        messages.append({"role": "user", "content": user_prompt})
         
         try:
             response_text = await self._call_llm(messages, use_cache=False)
@@ -333,7 +388,8 @@ Analyze if the query mentions or implies a specific project. Return JSON:
         self,
         user_query: str,
         api_responses: List[Dict[str, Any]],
-        project_name: Optional[str] = None
+        project_name: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> str:
         """
         Interpret API response data and provide a natural language answer.
@@ -342,6 +398,7 @@ Analyze if the query mentions or implies a specific project. Return JSON:
             user_query: The original user question
             api_responses: List of API responses with data
             project_name: Name of the selected project for context
+            conversation_history: Previous conversation for context retention
         
         Returns:
             Natural language interpretation of the data
@@ -369,7 +426,9 @@ CONTENT INSTRUCTIONS:
 - Provide a clear, concise answer to the user's question
 - Include relevant calculations or summaries for numerical data
 - Be conversational and professional
-- Start with a brief summary, then provide details"""
+- Use conversation history to understand context and references
+- Start with a brief summary, then provide details
+- Avoid repeating information already provided in the conversation"""
 
         user_prompt = f"""User's Question: "{user_query}"
 
@@ -379,10 +438,16 @@ API Response Data:
 
 Please provide a clear, well-formatted response."""
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        # Build messages with conversation history
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history (limit to last 10 messages for context)
+        if conversation_history:
+            recent_history = conversation_history[-10:]
+            messages.extend(recent_history)
+        
+        # Add current query and data
+        messages.append({"role": "user", "content": user_prompt})
         
         try:
             return await self._call_llm(messages, use_cache=False)
