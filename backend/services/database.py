@@ -34,14 +34,38 @@ class DatabaseService:
     async def connect(self):
         """Initialize database connection"""
         if self._client is None:
-            self._client = AsyncIOMotorClient(
-                settings.mongodb_uri, serverSelectionTimeoutMS=5000
-            )
-            self._db = self._client[settings.mongodb_database]
+            try:
+                # Determine if using Atlas (SSL required) or local MongoDB
+                is_atlas = "mongodb+srv://" in settings.mongodb_uri or "mongodb.net" in settings.mongodb_uri
+                
+                if is_atlas:
+                    # MongoDB Atlas connection with SSL
+                    self._client = AsyncIOMotorClient(
+                        settings.mongodb_uri,
+                        serverSelectionTimeoutMS=10000,
+                        tls=True,
+                        tlsAllowInvalidCertificates=False
+                    )
+                else:
+                    # Local MongoDB connection without SSL
+                    self._client = AsyncIOMotorClient(
+                        settings.mongodb_uri,
+                        serverSelectionTimeoutMS=10000
+                    )
+                
+                self._db = self._client[settings.mongodb_database]
 
-            # Create indexes
-            await self._create_indexes()
-            logger.info(f"Connected to MongoDB: {settings.mongodb_database}")
+                # Test connection
+                await self._client.admin.command('ping')
+                logger.info(f"Connected to MongoDB: {settings.mongodb_database}")
+                
+                # Create indexes
+                await self._create_indexes()
+                logger.info("Database indexes created successfully")
+            except Exception as e:
+                logger.error(f"Failed to connect to MongoDB: {e}")
+                logger.error("Please check MongoDB connection settings")
+                raise
 
     async def disconnect(self):
         """Close database connection"""
