@@ -325,11 +325,25 @@ class AgentService:
                     logger.warning(f"API {api_id} not found in catalog")
                     continue
 
-                # Ensure project_id and company_id are set
-                parameters["projectId"] = parameters.get(
-                    "projectId", selected_project_id
-                )
-                parameters["company_id"] = parameters.get("company_id", company_id)
+                # Ensure project_id, company_id, and user_id are set based on API definition
+                # Check which parameter name the API expects for project ID
+                project_param_name = None
+                for param in api_def.parameters:
+                    if param.name in ["projectId", "project_id"]:
+                        project_param_name = param.name
+                        break
+                
+                # ALWAYS override the project parameter with the correctly selected project
+                # This ensures we use the actual selected project, not what LLM guessed
+                if project_param_name:
+                    parameters[project_param_name] = selected_project_id
+                
+                # Always ensure company_id is set (override with correct value)
+                parameters["company_id"] = company_id
+                
+                # Always ensure user_id is set (use default "4" if not provided)
+                # All ERP APIs require user_id parameter
+                parameters["user_id"] = parameters.get("user_id", "4")
 
                 # Fill in missing parameters with defaults or examples
                 for param in api_def.parameters:
