@@ -1,9 +1,25 @@
-version: "3.8"
-
 services:
   # ============================================
   # MongoDB Database
   # ============================================
+  mongodb:
+    image: mongo:7
+    container_name: erp_chatbot_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: raaya-l1
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - erp_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ============================================
   # Redis Cache (Optional - for production scaling)
   # ============================================
@@ -35,13 +51,15 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    env-file:
+    env_file:
       - .env
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
     depends_on:
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - erp_network
@@ -83,5 +101,7 @@ networks:
 # Volumes
 # ============================================
 volumes:
+  mongodb_data:
+    driver: local
   redis_data:
     driver: local

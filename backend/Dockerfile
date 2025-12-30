@@ -1,23 +1,32 @@
-
-
 # ============================================
-# Stage 2: Production
+# Single Stage: Builder
 # ============================================
-FROM python:3.11-slim as production
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser
-
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install system dependencies (build and runtime)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    ca-certificates \
+    curl \
+    openssl \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
 
 # Set Python environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser
 
 # Copy application code
 COPY --chown=appuser:appuser . .

@@ -16,6 +16,7 @@ litellm==1.34.0
 # MongoDB async driver
 motor==3.3.2
 pymongo==4.6.1
+certifi  # SSL certificate bundle for MongoDB Atlas
 
 # Environment management
 python-dotenv==1.0.0
